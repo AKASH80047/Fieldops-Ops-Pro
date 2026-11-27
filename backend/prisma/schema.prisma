@@ -1,0 +1,662 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INVITED
+}
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+}
+enum PaymentMethod {
+  ONLINE
+  CASH
+}
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REJECTED
+}
+enum JobStatus {
+  PENDING
+  ASSIGNED
+  ACCEPTED
+  EN_ROUTE
+  IN_PROGRESS
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+enum TechnicianVerificationStatus {
+  DRAFT
+  PENDING_VERIFICATION
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+  INACTIVE
+}
+enum LedgerStatus {
+  PENDING
+  AVAILABLE
+  PAID
+  HELD
+  REVERSED
+}
+enum PayoutStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  PAID
+  FAILED
+  REJECTED
+}
+enum TechnicianDocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+enum CashCollectionStatus {
+  SUBMITTED
+  VERIFIED
+  REJECTED
+}
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  REOPENED
+}
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Business {
+  id String @id @default(uuid())
+  name String
+  slug String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  commissionRate Decimal @default(20)
+  members BusinessMember[]
+  customers Customer[]
+  technicians Technician[]
+  categories ServiceCategory[]
+  services Service[]
+  bookings Booking[]
+  invoices Invoice[]
+  subscriptions Subscription[]
+  auditLogs AuditLog[]
+  supportTickets SupportTicket[]
+  payoutRequests PayoutRequest[]
+}
+model User {
+  id String @id @default(uuid())
+  email String @unique
+  passwordHash String
+  name String
+  phone String?
+  status UserStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  memberships BusinessMember[]
+  customer Customer?
+  technician Technician?
+  sessions RefreshSession[]
+  notifications Notification[]
+  messages ChatMessage[]
+  reviews Review[]
+  deviceTokens DeviceToken[]
+}
+model Role {
+  id String @id @default(uuid())
+  name String @unique
+  permissions RolePermission[]
+  members BusinessMember[]
+}
+model Permission {
+  id String @id @default(uuid())
+  key String @unique
+  description String?
+  roles RolePermission[]
+}
+model RolePermission {
+  roleId String
+  permissionId String
+  role Role @relation(fields:[roleId],references:[id],onDelete:Cascade)
+  permission Permission @relation(fields:[permissionId],references:[id],onDelete:Cascade)
+  @@id([roleId,permissionId])
+}
+model BusinessMember {
+  id String @id @default(uuid())
+  businessId String
+  userId String
+  roleId String
+  active Boolean @default(true)
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  role Role @relation(fields:[roleId],references:[id])
+  @@unique([businessId,userId])
+  @@index([businessId,roleId])
+}
+model Customer {
+  id String @id @default(uuid())
+  businessId String
+  userId String @unique
+  notes String?
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id])
+  addresses Address[]
+  bookings Booking[]
+  supportTickets SupportTicket[]
+  @@index([businessId])
+}
+model Technician {
+  id String @id @default(uuid())
+  businessId String
+  userId String @unique
+  skills String[]
+  experienceYears Int @default(0)
+  addressLine1 String?
+  addressLine2 String?
+  city String?
+  state String?
+  postalCode String?
+  aadhaarLast4 String?
+  aadhaarHash String? @unique
+  aadhaarConsentAt DateTime?
+  profileCompletedAt DateTime?
+  rating Decimal @default(0)
+  available Boolean @default(false)
+  locationLat Decimal?
+  locationLng Decimal?
+  locationAt DateTime?
+  locationConsent Boolean @default(false)
+  verificationStatus TechnicianVerificationStatus @default(DRAFT)
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id])
+  assignments JobAssignment[]
+  workReports WorkReport[]
+  ledgerEntries TechnicianLedger[]
+  payoutRequests PayoutRequest[]
+  documents TechnicianDocument[]
+  cashCollections CashCollection[]
+  supportTickets SupportTicket[]
+  serviceAreas TechnicianServiceArea[]
+  @@index([businessId,available])
+}
+model TechnicianDocument {
+  id String @id @default(uuid())
+  technicianId String
+  type String
+  objectKey String
+  mimeType String
+  status TechnicianDocumentStatus @default(PENDING)
+  rejectionReason String?
+  uploadedAt DateTime @default(now())
+  reviewedAt DateTime?
+  reviewedById String?
+  technician Technician @relation(fields:[technicianId],references:[id],onDelete:Cascade)
+  @@unique([technicianId,type])
+  @@index([technicianId,status])
+}
+model TechnicianLedger {
+  id String @id @default(uuid())
+  businessId String
+  technicianId String
+  jobId String @unique
+  grossAmount Decimal
+  commissionAmount Decimal
+  netAmount Decimal
+  status LedgerStatus @default(PENDING)
+  availableAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  technician Technician @relation(fields:[technicianId],references:[id],onDelete:Cascade)
+  payoutAllocations PayoutLedgerAllocation[]
+  @@index([businessId,technicianId,status])
+}
+model PayoutRequest {
+  id String @id @default(uuid())
+  businessId String
+  technicianId String
+  amount Decimal
+  status PayoutStatus @default(REQUESTED)
+  reference String?
+  requestedById String?
+  approvedById String?
+  processedById String?
+  failureReason String?
+  idempotencyKey String? @unique
+  requestedAt DateTime @default(now())
+  approvedAt DateTime?
+  processedAt DateTime?
+  updatedAt DateTime @updatedAt
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  technician Technician @relation(fields:[technicianId],references:[id],onDelete:Cascade)
+  allocations PayoutLedgerAllocation[]
+  @@index([businessId,status,requestedAt])
+  @@index([technicianId,status])
+}
+model PayoutLedgerAllocation {
+  payoutRequestId String
+  ledgerId String
+  amount Decimal
+  releasedAt DateTime?
+  payoutRequest PayoutRequest @relation(fields:[payoutRequestId],references:[id],onDelete:Cascade)
+  ledger TechnicianLedger @relation(fields:[ledgerId],references:[id],onDelete:Restrict)
+  @@id([payoutRequestId,ledgerId])
+  @@index([ledgerId,releasedAt])
+}
+model ServiceCategory {
+  id String @id @default(uuid())
+  businessId String
+  name String
+  description String?
+  imageObjectKey String?
+  displayOrder Int @default(0)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  services Service[]
+  @@index([businessId,active,displayOrder])
+}
+model Service {
+  id String @id @default(uuid())
+  businessId String
+  categoryId String
+  name String
+  description String
+  imageObjectKey String?
+  requiredSkills String[] @default([])
+  basePrice Decimal
+  durationMinutes Int
+  taxRate Decimal @default(0)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  category ServiceCategory @relation(fields:[categoryId],references:[id])
+  bookings Booking[]
+  coverage ServiceAreaAssignment[]
+  @@index([businessId,categoryId,active])
+}
+model Address {
+  id String @id @default(uuid())
+  customerId String
+  label String
+  line1 String
+  line2 String?
+  city String
+  state String
+  postalCode String
+  latitude Decimal?
+  longitude Decimal?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  customer Customer @relation(fields:[customerId],references:[id],onDelete:Cascade)
+  bookings Booking[]
+}
+model Booking {
+  id String @id @default(uuid())
+  businessId String
+  customerId String
+  serviceId String
+  addressId String
+  status BookingStatus @default(PENDING)
+  scheduledAt DateTime
+  instructions String?
+  estimatedPrice Decimal
+  finalPrice Decimal?
+  cancelledReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  customer Customer @relation(fields:[customerId],references:[id])
+  service Service @relation(fields:[serviceId],references:[id])
+  address Address @relation(fields:[addressId],references:[id])
+  job Job?
+  reviews Review[]
+  invoice Invoice?
+  chat ChatMessage[]
+  supportTickets SupportTicket[]
+  @@index([businessId,status,scheduledAt])
+}
+model Job {
+  id String @id @default(uuid())
+  bookingId String @unique
+  status JobStatus @default(PENDING)
+  priority String @default("NORMAL")
+  startedAt DateTime?
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  booking Booking @relation(fields:[bookingId],references:[id],onDelete:Cascade)
+  assignments JobAssignment[]
+  history JobStatusHistory[]
+  photos JobPhoto[]
+  report WorkReport?
+  checklist InspectionChecklist[]
+  materials MaterialUsed[]
+  signature DigitalSignature?
+  supportTickets SupportTicket[]
+}
+model JobAssignment {
+  id String @id @default(uuid())
+  jobId String
+  technicianId String
+  assignedAt DateTime @default(now())
+  unassignedAt DateTime?
+  job Job @relation(fields:[jobId],references:[id],onDelete:Cascade)
+  technician Technician @relation(fields:[technicianId],references:[id])
+  @@index([technicianId,unassignedAt])
+}
+model JobStatusHistory {
+  id String @id @default(uuid())
+  jobId String
+  status JobStatus
+  note String?
+  changedById String
+  changedAt DateTime @default(now())
+  job Job @relation(fields:[jobId],references:[id],onDelete:Cascade)
+}
+model JobPhoto {
+  id String @id @default(uuid())
+  jobId String
+  type String
+  objectKey String
+  mimeType String
+  size Int
+  createdAt DateTime @default(now())
+  job Job @relation(fields:[jobId],references:[id],onDelete:Cascade)
+}
+model WorkReport {
+  id String @id @default(uuid())
+  jobId String @unique
+  technicianId String
+  description String
+  summary String?
+  additionalCharge Decimal @default(0)
+  submittedAt DateTime?
+  job Job @relation(fields:[jobId],references:[id],onDelete:Cascade)
+  technician Technician @relation(fields:[technicianId],references:[id])
+}
+model InspectionChecklist {
+  id String @id @default(uuid())
+  jobId String
+  label String
+  completed Boolean @default(false)
+  job Job @relation(fields:[jobId],references:[id],onDelete:Cascade)
+}
+model MaterialUsed {
+  id String @id @default(uuid())
+  jobId String
+  name String
+  quantity Decimal
+  unitPrice Decimal
+  job Job @relation(fields:[jobId],references:[id],onDelete:Cascade)
+}
+model DigitalSignature {
+  id String @id @default(uuid())
+  jobId String @unique
+  objectKey String
+  signedBy String
+  signedAt DateTime @default(now())
+  job Job @relation(fields:[jobId],references:[id],onDelete:Cascade)
+}
+model Invoice {
+  id String @id @default(uuid())
+  businessId String
+  bookingId String @unique
+  number String
+  total Decimal
+  subtotal Decimal
+  tax Decimal
+  status String
+  issuedAt DateTime @default(now())
+  dueAt DateTime?
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  booking Booking @relation(fields:[bookingId],references:[id])
+  items InvoiceItem[]
+  payments Payment[]
+  @@unique([businessId,number])
+}
+model InvoiceItem {
+  id String @id @default(uuid())
+  invoiceId String
+  description String
+  quantity Decimal
+  unitPrice Decimal
+  tax Decimal
+  invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
+}
+model Payment {
+  id String @id @default(uuid())
+  invoiceId String
+  provider String
+  providerOrderId String?
+  providerPaymentId String?
+  idempotencyKey String @unique
+  method PaymentMethod @default(ONLINE)
+  currency String @default("INR")
+  amount Decimal
+  status PaymentStatus @default(PENDING)
+  failureReason String?
+  verifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  invoice Invoice @relation(fields:[invoiceId],references:[id])
+  refunds Refund[]
+  cashCollection CashCollection?
+}
+model Refund {
+  id String @id @default(uuid())
+  paymentId String
+  amount Decimal
+  status RefundStatus @default(REQUESTED)
+  idempotencyKey String @unique
+  providerRefundId String?
+  reason String?
+  failureReason String?
+  reviewedById String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  processedAt DateTime?
+  payment Payment @relation(fields:[paymentId],references:[id])
+  @@index([paymentId,status])
+}
+model CashCollection {
+  id String @id @default(uuid())
+  paymentId String @unique
+  technicianId String
+  receiptObjectKey String
+  amount Decimal
+  status CashCollectionStatus @default(SUBMITTED)
+  collectedAt DateTime
+  submittedAt DateTime @default(now())
+  verifiedAt DateTime?
+  verifiedById String?
+  rejectionReason String?
+  payment Payment @relation(fields:[paymentId],references:[id],onDelete:Restrict)
+  technician Technician @relation(fields:[technicianId],references:[id],onDelete:Restrict)
+  @@index([technicianId,status,submittedAt])
+}
+model Coupon {
+  id String @id @default(uuid())
+  businessId String
+  code String
+  type String
+  value Decimal
+  active Boolean @default(true)
+  startsAt DateTime
+  endsAt DateTime
+  usageLimit Int?
+  @@unique([businessId,code])
+}
+model Notification {
+  id String @id @default(uuid())
+  userId String
+  title String
+  body String
+  type String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+}
+model ChatMessage {
+  id String @id @default(uuid())
+  bookingId String
+  senderId String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  booking Booking @relation(fields:[bookingId],references:[id],onDelete:Cascade)
+  sender User @relation(fields:[senderId],references:[id])
+}
+model Review {
+  id String @id @default(uuid())
+  bookingId String
+  userId String
+  rating Int
+  comment String?
+  createdAt DateTime @default(now())
+  booking Booking @relation(fields:[bookingId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id])
+  @@unique([bookingId,userId])
+}
+model SupportTicket {
+  id String @id @default(uuid())
+  businessId String
+  customerId String
+  bookingId String?
+  jobId String?
+  technicianId String?
+  subject String
+  description String
+  status SupportTicketStatus @default(OPEN)
+  priority SupportTicketPriority @default(NORMAL)
+  assignedToId String?
+  adminNotes String?
+  resolution String?
+  resolvedAt DateTime?
+  reopenedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  business Business @relation(fields:[businessId],references:[id],onDelete:Cascade)
+  customer Customer @relation(fields:[customerId],references:[id])
+  booking Booking? @relation(fields:[bookingId],references:[id],onDelete:SetNull)
+  job Job? @relation(fields:[jobId],references:[id],onDelete:SetNull)
+  technician Technician? @relation(fields:[technicianId],references:[id],onDelete:SetNull)
+  @@index([businessId,status,priority,createdAt])
+  @@index([bookingId])
+}
+model Subscription {
+  id String @id @default(uuid())
+  businessId String
+  plan String
+  status String
+  startsAt DateTime
+  endsAt DateTime?
+  business Business @relation(fields:[businessId],references:[id])
+}
+model RefreshSession {
+  id String @id @default(uuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  replacedById String?
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+}
+model AuditLog {
+  id String @id @default(uuid())
+  businessId String?
+  actorId String?
+  action String
+  entity String
+  entityId String?
+  metadata Json?
+  ip String?
+  createdAt DateTime @default(now())
+  business Business? @relation(fields:[businessId],references:[id])
+}
+model ServiceArea {
+  id String @id @default(uuid())
+  businessId String
+  name String
+  postalCodes String[]
+  active Boolean @default(true)
+  services ServiceAreaAssignment[]
+  technicians TechnicianServiceArea[]
+  @@index([businessId])
+}
+model ServiceAreaAssignment {
+  serviceId String
+  serviceAreaId String
+  active Boolean @default(true)
+  service Service @relation(fields:[serviceId],references:[id],onDelete:Cascade)
+  serviceArea ServiceArea @relation(fields:[serviceAreaId],references:[id],onDelete:Cascade)
+  @@id([serviceId,serviceAreaId])
+  @@index([serviceAreaId,active])
+}
+model TechnicianServiceArea {
+  technicianId String
+  serviceAreaId String
+  active Boolean @default(true)
+  technician Technician @relation(fields:[technicianId],references:[id],onDelete:Cascade)
+  serviceArea ServiceArea @relation(fields:[serviceAreaId],references:[id],onDelete:Cascade)
+  @@id([technicianId,serviceAreaId])
+  @@index([serviceAreaId,active])
+}
+model DeviceToken {
+  id String @id @default(uuid())
+  userId String
+  token String @unique
+  platform String
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+}
+model SyncOperation {
+  id String @id @default(uuid())
+  businessId String
+  userId String
+  idempotencyKey String @unique
+  operation String
+  entityId String
+  payload Json
+  status String @default("APPLIED")
+  createdAt DateTime @default(now())
+  @@index([businessId,userId,createdAt])
+}

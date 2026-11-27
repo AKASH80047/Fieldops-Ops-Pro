@@ -1,0 +1,4 @@
+import type{NextFunction,Response}from'express';import type{AuthRequest}from'./types.js';import{AppError}from'./errors.js';import{verifyAccess}from'./security.js';
+export function authenticate(req:AuthRequest,_res:Response,next:NextFunction){const raw=req.headers.authorization;if(!raw?.startsWith('Bearer '))return next(new AppError(401,'Authentication required','UNAUTHENTICATED'));try{req.identity=verifyAccess(raw.slice(7));next();}catch{return next(new AppError(401,'Access token is invalid or expired','INVALID_TOKEN'));}}
+export const allow=(...roles:string[])=>(req:AuthRequest,_res:Response,next:NextFunction)=>req.identity&&roles.includes(req.identity.role)?next():next(new AppError(403,'Insufficient permission','FORBIDDEN'));
+export function requireTenant(req:AuthRequest,_res:Response,next:NextFunction){if(!req.identity?.businessId)return next(new AppError(403,'Business context required','TENANT_REQUIRED'));next();}

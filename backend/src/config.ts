@@ -1,0 +1,3 @@
+import 'dotenv/config';import {z}from'zod';
+const schema=z.object({NODE_ENV:z.enum(['development','test','production']).default('development'),PORT:z.coerce.number().default(4000),DATABASE_URL:z.string().min(1),JWT_ACCESS_SECRET:z.string().min(32),JWT_REFRESH_SECRET:z.string().min(32),AADHAAR_HASH_SECRET:z.string().min(32).optional(),FIREBASE_PROJECT_ID:z.string().min(1).optional(),FIREBASE_SERVICE_ACCOUNT_JSON:z.string().min(2).optional(),ACCESS_TOKEN_TTL:z.string().default('15m'),REFRESH_TOKEN_DAYS:z.coerce.number().default(30),CORS_ORIGINS:z.string().default('')});
+export const config=schema.parse(process.env);

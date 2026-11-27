@@ -1,0 +1,1 @@
+import type{Request}from'express';export type Identity={userId:string;businessId:string;role:string;permissions:string[]};export type AuthRequest=Omit<Request,'params'>&{params:Record<string,string>;identity?:Identity};
